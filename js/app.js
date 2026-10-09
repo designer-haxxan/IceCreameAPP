@@ -11,18 +11,19 @@ const $ = window.jQuery;
 
 // Route table: name → [loader, title, permission|null, icon, menu section]
 const ROUTES = {
-  dashboard: [() => import('./modules/dashboard.js'), 'Dashboard', null, 'house', 'Main'],
-  pos: [() => import('./modules/pos.js'), 'New Sale', 'sale.create', 'cart-plus', 'Main'],
-  sales: [() => import('./modules/documents.js'), 'Sales', null, 'receipt', 'Main'],
-  purchase: [() => import('./modules/pos.js'), 'New Purchase', 'purchase.manage', null, null],
-  purchases: [() => import('./modules/documents.js'), 'Purchases', 'purchase.manage', 'bag', 'Main'],
-  returns: [() => import('./modules/documents.js'), 'Returns', null, 'arrow-return-left', 'Main'],
-  products: [() => import('./modules/products.js'), 'Products', null, 'box-seam', 'Inventory'],
-  stock: [() => import('./modules/stock.js'), 'Stock', null, 'boxes', 'Inventory'],
+  dashboard: [() => import('./modules/dashboard.js'), 'Home', null, 'house-heart', 'Main'],
+  pos: [() => import('./modules/pos.js'), 'Sell', 'sale.create', 'cup-straw', 'Main'],
+  sales: [() => import('./modules/documents.js'), 'Bills', null, 'receipt', 'Main'],
+  expenses: [() => import('./modules/expenses.js'), 'Expenses', 'account.manage', 'wallet2', 'Main'],
+  purchase: [() => import('./modules/pos.js'), 'Buy Stock', 'purchase.manage', null, null],
+  purchases: [() => import('./modules/documents.js'), 'Stock Purchases', 'purchase.manage', 'bag-check', 'Shop'],
+  products: [() => import('./modules/products.js'), 'Menu & Prices', null, 'card-list', 'Shop'],
+  stock: [() => import('./modules/stock.js'), 'Stock', null, 'boxes', 'Shop'],
+  returns: [() => import('./modules/documents.js'), 'Returns', null, 'arrow-return-left', 'Shop'],
   customers: [() => import('./modules/parties.js'), 'Customers', null, 'people', 'Parties'],
   suppliers: [() => import('./modules/parties.js'), 'Suppliers', 'purchase.manage', 'truck', 'Parties'],
-  vouchers: [() => import('./modules/vouchers.js'), 'Cash Book & Payments', 'voucher.create', 'cash-coin', 'Accounts'],
-  accounts: [() => import('./modules/accounts.js'), 'Accounts', 'account.manage', 'bank', 'Accounts'],
+  vouchers: [() => import('./modules/vouchers.js'), 'Cash Book', 'voucher.create', 'cash-coin', 'Accounts'],
+  accounts: [() => import('./modules/accounts.js'), 'Cash & Banks', 'account.manage', 'bank', 'Accounts'],
   reports: [() => import('./reports/reports.js'), 'Reports', 'reports.view', 'bar-chart-line', 'Accounts'],
   backup: [() => import('./modules/backup.js'), 'Backup & Restore', 'backup.export', 'cloud-arrow-down', 'Administration'],
   settings: [() => import('./modules/settings.js'), 'Settings', null, 'gear', 'Administration'],
@@ -106,6 +107,7 @@ function buildMenu() {
   $('#user-avatar').text(UI.initials(u.name));
   $('#brand-name').text(getSettings().business.name || CONFIG.APP_NAME);
   $('#bottom-nav [data-route="pos"]').toggleClass('d-none', !Auth.can('sale.create'));
+  $('#bottom-nav [data-route="expenses"]').toggleClass('d-none', !Auth.can('account.manage'));
 }
 
 async function route() {

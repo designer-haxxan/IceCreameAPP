@@ -5,13 +5,13 @@ const KEY = storageKey('settings');
 const LEGACY_KEY = 'pos.settings'; // shared by older builds on the same origin; copied once as a starting point
 
 export const DEFAULT_SETTINGS = {
-  business: { name: 'My Store', address: '', phone: '', taxNo: '', footer: 'Thank you for your purchase!' },
+  business: { name: 'Ice Cream Parlor', address: '', phone: '', taxNo: '', footer: 'Thank you! Come again 🍦' },
   currency: 'Rs',
   taxEnabled: false,
-  taxRate: 0,
+  taxRate: 16, // Pakistan sales tax rate, used only when taxEnabled is switched on (Settings → Tax)
   allowNegativeStock: false,
   updatePurchasePrice: true,
-  prefixes: { sale: 'SALE', purchase: 'PUR', saleReturn: 'SRN', purchaseReturn: 'PRN', receipt: 'RCV', payment: 'PAY', transfer: 'TRF', adjustment: 'ADJ' },
+  prefixes: { sale: 'BILL', purchase: 'PUR', saleReturn: 'SRN', purchaseReturn: 'PRN', receipt: 'RCV', payment: 'PAY', transfer: 'TRF', adjustment: 'ADJ' },
   printer: { method: 'browser', width: 58, autoPrint: false, copies: 1, chunkSize: 20, imageMode: 'gsv0', deviceName: '', deviceId: '' },
   theme: 'auto',
   register: 'Main',

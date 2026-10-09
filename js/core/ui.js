@@ -18,7 +18,8 @@ export const toastError = (err) => {
   toast(err?.message || String(err), 'danger', 5000);
 };
 
-export function modal({ title, body = '', footer = null, size = '', scrollable = true, fullscreenMobile = true, static: isStatic = false }) {
+// keepOnHide: the dialog stays in the page after it is hidden (so it can be shown again); call dispose() when done.
+export function modal({ title, body = '', footer = null, size = '', scrollable = true, fullscreenMobile = true, static: isStatic = false, keepOnHide = false }) {
   const $m = $(`<div class="modal fade" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog ${size ? 'modal-' + size : ''} ${scrollable ? 'modal-dialog-scrollable' : ''} ${fullscreenMobile ? 'modal-fullscreen-sm-down' : ''} modal-dialog-centered">
       <div class="modal-content">
@@ -29,9 +30,19 @@ export function modal({ title, body = '', footer = null, size = '', scrollable =
       </div></div></div>`);
   $('body').append($m);
   const bs = new bootstrap.Modal($m[0], isStatic ? { backdrop: 'static', keyboard: false } : {});
-  const closed = new Promise((res) => $m.on('hidden.bs.modal', () => { bs.dispose(); $m.remove(); res(); }));
+  // Bootstrap is still finishing its hide when 'hidden' fires, so tear down on the next tick (disposing inside the event throws).
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return; // a dialog can be closed from two handlers at once
+    disposed = true;
+    setTimeout(() => {
+      try { bs.dispose(); } catch { /* Bootstrap may already have released its internals; the element is still removed below */ }
+      $m.remove();
+    }, 0);
+  };
+  const closed = new Promise((res) => $m.on('hidden.bs.modal', () => { res(); if (!keepOnHide) dispose(); }));
   bs.show();
-  return { $el: $m, close: () => bs.hide(), closed, bs };
+  return { $el: $m, close: () => bs.hide(), closed, bs, dispose };
 }
 
 // Form dialog. onSubmit receives (values, $el); return a value to close, throw to show an error.

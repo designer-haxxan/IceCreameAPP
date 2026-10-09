@@ -5,12 +5,12 @@ import { fmtNum, fmtQty, fmtDateTime, fmtDate, esc, localDate } from '../core/ut
 import { EscPos, isPlain } from './escpos.js';
 import * as Raster from './raster.js';
 
-const TITLES = { sale: 'SALES RECEIPT', purchase: 'PURCHASE', saleReturn: 'SALE RETURN', purchaseReturn: 'PURCHASE RETURN', receipt: 'PAYMENT RECEIPT', payment: 'PAYMENT VOUCHER', transfer: 'TRANSFER' };
+const TITLES = { sale: 'BILL / RECEIPT', purchase: 'PURCHASE', saleReturn: 'SALE RETURN', purchaseReturn: 'PURCHASE RETURN', receipt: 'PAYMENT RECEIPT', payment: 'PAYMENT VOUCHER', transfer: 'TRANSFER' };
 
 export async function buildReceipt(kind, doc) {
   const s = getSettings();
   const b = s.business;
-  const m = { header: [b.name, b.address, b.phone ? 'Tel: ' + b.phone : '', b.taxNo ? 'Tax No: ' + b.taxNo : ''].filter(Boolean), title: TITLES[kind] || kind.toUpperCase(),
+  const m = { header: [b.name, b.address, b.phone ? 'Tel: ' + b.phone : '', b.taxNo ? 'NTN: ' + b.taxNo : ''].filter(Boolean), title: TITLES[kind] || kind.toUpperCase(),
     info: [], items: [], totals: [], footer: b.footer || '', void: doc.status === 'void' };
   const sameDay = doc.createdAt && localDate(new Date(doc.createdAt)) === doc.date;
   m.info.push(['No', doc.number], ['Date', sameDay ? fmtDateTime(doc.createdAt) : fmtDate(doc.date)]);

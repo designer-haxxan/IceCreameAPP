@@ -7,6 +7,7 @@ import { nowISO, round3, uuid, AppError } from '../core/utils.js';
 import * as Auth from './auth.js';
 import * as Catalog from './catalog.js';
 
+// Kept from the earlier shop app so that its backup files still import.
 export const FORMAT = 'saleapp-pos-backup';
 
 // Required fields per collection (id/key checked separately).
@@ -44,7 +45,7 @@ export async function createBackup() {
 export function validateBackup(obj) {
   const errors = []; const warnings = [];
   if (!obj || typeof obj !== 'object') return { ok: false, errors: ['The file is not a valid JSON object.'], warnings };
-  if (obj.format !== FORMAT) errors.push('This file is not a SaleAPP POS backup.');
+  if (obj.format !== FORMAT) errors.push('This file is not a backup from this app (or from the earlier shop app).');
   if (!Number.isInteger(obj.backupVersion)) errors.push('Missing backup version.');
   else if (obj.backupVersion > CONFIG.BACKUP_VERSION) errors.push(`This backup was made by a newer app version (backup v${obj.backupVersion}). Update the app first.`);
   if (obj.schemaVersion > CONFIG.SCHEMA_VERSION) errors.push(`Unsupported database schema version ${obj.schemaVersion}.`);

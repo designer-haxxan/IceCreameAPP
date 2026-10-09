@@ -10,6 +10,8 @@ import * as Posting from '../services/posting.js';
 import * as Printer from '../printer/printer.js';
 import * as Scanner from '../scanner/scanner.js';
 import { partyPicker } from './parties.js';
+import { emojiFor, payIcon } from '../services/starter.js';
+import { celebrate, floatText, pulse } from '../core/fx.js';
 
 const $ = window.jQuery;
 let st; let $root; let detachWedge = null; let payAccounts = [];
@@ -42,6 +44,7 @@ function layout() {
       </div>
       <div class="chips mb-2 cat-chips"></div>
       <div class="product-grid"></div>
+      ${sale ? `<div class="browse-bill"><button class="btn btn-primary btn-view-bill w-100"><i class="bi bi-receipt me-2"></i><span class="vb-text"></span><i class="bi bi-chevron-right ms-auto"></i></button></div>` : ''}
     </div>
     <div class="pos-right">
       <div class="pos-search">
@@ -85,7 +88,7 @@ function renderLines() {
   const s = getSettings();
   const $l = $root.find('.pos-lines');
   if (!st.lines.length) {
-    $l.html(UI.emptyState(isSale() ? 'Cart is empty. Search, scan or browse to add products.' : 'No products yet. Search or scan to add purchased items.', 'cart'));
+    $l.html(UI.emptyState(isSale() ? 'Tap an item to add it to the bill.' : 'No products yet. Search or scan to add purchased items.', 'cart'));
   } else {
     $l.html(st.lines.map((l, i) => {
       const p = Catalog.product(l.productId);
@@ -109,6 +112,7 @@ function renderTotals() {
   $root.find('.total').text(`${cur()} ${fmtNum(t.total)}`);
   $root.find('.footer-sub').html(`<span>${st.lines.length} item(s) · qty ${fmtQty(t.qtyTotal)}</span><span>${t.discount ? `Disc ${fmtNum(t.discount)} · ` : ''}${t.tax ? `Tax ${fmtNum(t.tax)}` : ''}</span>`);
   $root.find('.btn-pay').prop('disabled', !st.lines.length);
+  $root.find('.vb-text').text(st.lines.length ? `View bill · ${st.lines.length} item(s) · ${cur()} ${fmtNum(t.total)}` : 'Tap items to add them to the bill');
   $root.find('.party-name').text(st.partyName || (isSale() ? 'Walk-in Customer' : 'Select supplier'));
   $root.find('.pm-label').text(st.priceMode === 'retail' ? 'wholesale' : 'retail');
   persist();
@@ -122,14 +126,21 @@ async function renderHoldCount() {
 
 // ---------- browse grid ----------
 let browseCat = null;
+// On phones an empty bill opens on the menu, so the next customer's items can be tapped straight away.
+function syncBrowse() {
+  const phone = !window.matchMedia('(min-width: 992px)').matches;
+  if (isSale() && phone && !st.lines.length) $root.find('.pos').addClass('show-browse');
+}
 function renderGrid() {
   const q = $root.find('.browse-q').val() || '';
   const list = Catalog.searchProducts(q, { limit: 120, categoryId: browseCat });
   const cats = Catalog.allCategories();
-  $root.find('.cat-chips').html(`<span class="chip ${!browseCat ? 'active' : ''}" data-cat="">All</span>` + cats.map((c) => `<span class="chip ${browseCat === c.id ? 'active' : ''}" data-cat="${esc(c.id)}">${esc(c.name)}</span>`).join(''));
+  $root.find('.cat-chips').html(`<span class="chip ${!browseCat ? 'active' : ''}" data-cat="">All</span>` + cats.map((c) => `<span class="chip ${browseCat === c.id ? 'active' : ''}" data-cat="${esc(c.id)}">${isSale() ? emojiFor(c.name) + ' ' : ''}${esc(c.name)}</span>`).join(''));
   $root.find('.product-grid').html(list.length ? list.map((p) => `
-    <button class="product-tile" data-id="${esc(p.id)}">
-      ${p.image ? `<img src="${p.image}" alt="" loading="lazy">` : `<div class="ph tint-${UI.tintFor(p.name)}">${esc(UI.initials(p.name))}</div>`}
+    <button class="product-tile" data-id="${esc(p.id)}" style="--i:${Math.min(list.indexOf(p), 14)}">
+      ${p.image ? `<img src="${p.image}" alt="" loading="lazy">` : isSale()
+        ? `<div class="ph emoji-ph">${emojiFor(Catalog.category(p.categoryId)?.name)}</div>`
+        : `<div class="ph tint-${UI.tintFor(p.name)}">${esc(UI.initials(p.name))}</div>`}
       <div class="n">${esc(p.name)}</div>
       <div class="p">${fmtNum(priceOf(p))}</div>
       ${p.trackStock !== false ? `<div class="s">Stock: ${fmtQty(p.stock)}</div>` : ''}
@@ -225,13 +236,18 @@ async function checkout() {
   const canDate = Auth.can(sale ? 'sale.edit' : 'purchase.manage');
   const lastAcc = pref.get('payAccount', 'cash');
   const m = UI.modal({
-    title: sale ? 'Payment' : 'Save purchase', static: true,
+    title: sale ? 'Payment' : 'Save purchase', static: true, keepOnHide: true,
     body: `<form class="checkout" autocomplete="off">
       <div class="text-center mb-2"><div class="small text-body-secondary">Amount due</div><div class="checkout-total money co-total"></div></div>
       <button type="button" class="btn btn-light w-100 mb-3 text-start co-party"><i class="bi bi-person me-2"></i><span></span><i class="bi bi-chevron-right float-end"></i></button>
+      ${sale ? `<div class="pay-methods mb-3" role="group" aria-label="How is the customer paying?">${payAccounts.map((a) => {
+        const on = a.id === (st.payAccount || lastAcc) || (!payAccounts.some((x) => x.id === (st.payAccount || lastAcc)) && a === payAccounts[0]);
+        return `<button type="button" class="pay-method ${on ? 'active' : ''}" data-acc="${esc(a.id)}" aria-pressed="${on}"><i class="bi bi-${payIcon(a)}"></i><span>${esc(a.name)}</span></button>`;
+      }).join('')}</div>
+      <input type="hidden" name="account" value="${esc(st.payAccount || lastAcc)}">` : ''}
       <div class="row g-2 mb-2">
-        <div class="col-6"><label class="form-label">Bill discount</label><div class="input-group"><input name="discount" class="form-control" inputmode="decimal" value="${st.discount || ''}" placeholder="0"><button type="button" class="btn btn-outline-secondary co-pct" title="Discount as percent">%</button></div></div>
-        <div class="col-6"><label class="form-label">Pay via</label><select name="account" class="form-select">${UI.options(payAccounts, st.payAccount || lastAcc)}</select></div>
+        <div class="${sale ? 'col-12' : 'col-6'}"><label class="form-label">Bill discount</label><div class="input-group"><input name="discount" class="form-control" inputmode="decimal" value="${st.discount || ''}" placeholder="0"><button type="button" class="btn btn-outline-secondary co-pct" title="Discount as percent">%</button></div></div>
+        ${sale ? '' : `<div class="col-6"><label class="form-label">Pay via</label><select name="account" class="form-select">${UI.options(payAccounts, st.payAccount || lastAcc)}</select></div>`}
       </div>
       <div class="small text-body-secondary co-breakdown mb-2"></div>
       <label class="form-label">${sale ? 'Amount received' : 'Amount paid'}</label>
@@ -276,6 +292,12 @@ async function checkout() {
   $m.on('input', '[name=discount]', update);
   $m.on('input', '[name=tendered]', () => { tenderedTouched = true; update(); });
   $m.on('click', '.pay-quick [data-v]', function () { tenderedTouched = true; $m.find('[name=tendered]').val(this.dataset.v); update(); });
+  $m.on('click', '.pay-method', function () {
+    $m.find('.pay-method').removeClass('active').attr('aria-pressed', 'false');
+    $(this).addClass('active').attr('aria-pressed', 'true');
+    $m.find('[name=account]').val(this.dataset.acc);
+    pulse(this);
+  });
   $m.on('click', '.co-pct', () => {
     const base = Posting.previewDoc(st.lines, 0, 0)?.subtotal || 0;
     const pct = prompt('Discount percent (%)', '');
@@ -285,10 +307,9 @@ async function checkout() {
     m.bs.hide(); await new Promise((r) => $m.one('hidden.bs.modal', r));
     await choosePartyFn(); m.bs.show(); tenderedTouched = false; update();
   });
-  // Our modal helper removes the element on hide; keep it alive while choosing a party.
-  $m.off('hidden.bs.modal');
   let finished = false;
-  const closeAll = () => { finished = true; m.bs.hide(); $m.one('hidden.bs.modal', () => { m.bs.dispose(); $m.remove(); }); };
+  // keepOnHide keeps the dialog in the page while a customer is chosen; it is removed once the sale window closes.
+  const closeAll = () => { finished = true; $m.one('hidden.bs.modal', () => m.dispose()); m.bs.hide(); };
   $m.find('[data-bs-dismiss=modal]').on('click', (e) => { e.preventDefault(); closeAll(); });
   $m.find('.btn-close').on('click', (e) => { e.preventDefault(); closeAll(); });
   $m.on('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeAll(); } });
@@ -319,10 +340,14 @@ async function checkout() {
       localStorage.removeItem(draftKey());
       st = fresh(st.mode);
       if (wasEdit) { location.hash = `#/${sale ? 'sales' : 'purchases'}/${doc.id}`; UI.toast(`${doc.number} updated`); return; }
-      $root.html(layout()); renderLines(); renderHoldCount();
-      UI.toast(duplicate ? `${doc.number} was already saved` : `${doc.number} saved — ${cur()} ${fmtNum(doc.total)}`);
+      $root.html(layout()); renderLines(); renderHoldCount(); renderGrid(); syncBrowse();
+      if (!duplicate && sale) celebrate();
+      // Counter-friendly: a sale shows the change to hand back and then the next customer can start at once.
+      if (sale && !duplicate && doc.change) UI.toast(`${doc.number} saved — give change ${cur()} ${fmtNum(doc.change)}`, 'success', 7000);
+      else UI.toast(duplicate ? `${doc.number} was already saved` : `${doc.number} saved — ${cur()} ${fmtNum(doc.total)}`, 'success', sale ? 4500 : 3200);
       if (doPrint) await Printer.printDocument('sale', doc, { silentFail: true });
-      afterSave(doc);
+      // Purchases keep the summary dialog; sales go straight back to an empty cart.
+      if (!sale) afterSave(doc);
     } catch (err) {
       console.warn(err);
       $m.find('.co-error').text(err.message || String(err)).removeClass('d-none');
@@ -401,7 +426,7 @@ export default {
     }
     $root = $(el);
     $root.html(layout());
-    renderLines(); renderHoldCount(); renderGrid();
+    renderLines(); renderHoldCount(); renderGrid(); syncBrowse();
     const $q = $root.find('.pos-q');
     if (window.matchMedia('(min-width: 992px)').matches) $q.trigger('focus');
 
@@ -450,12 +475,14 @@ export default {
     $root.on('click', '.btn-scan', async () => { const code = await Scanner.scan(); if (code) addByCode(code); });
     $root.on('click', '.btn-scan-cont', () => Scanner.scan({ continuous: true, title: 'Continuous scan', onCode: addByCode }));
     $root.on('click', '.btn-browse', () => { $root.find('.pos').addClass('show-browse'); renderGrid(); });
+    $root.on('click', '.btn-view-bill', () => $root.find('.pos').removeClass('show-browse'));
     $root.on('click', '.btn-close-browse', () => $root.find('.pos').removeClass('show-browse'));
     $root.on('input', '.browse-q', debounce(renderGrid, 150));
     $root.on('click', '.cat-chips [data-cat]', function () { browseCat = this.dataset.cat || null; renderGrid(); });
     $root.on('click', '.product-tile', function () {
       addProduct(Catalog.product(this.dataset.id));
-      if (!window.matchMedia('(min-width: 992px)').matches) UI.toast('Added', 'success', 800);
+      pulse(this);
+      floatText(this, '+1');
     });
     detachWedge = Scanner.attachWedge(addByCode);
   },

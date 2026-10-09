@@ -1,58 +1,70 @@
-# SaleAPP POS
+# Ice Cream Parlor POS
 
-Offline-first, mobile-first Point of Sale as a static PWA (no build step).
+Offline-first point of sale for an ice cream parlor, built as a static PWA (no build step).
 HTML5 · ES modules · jQuery · Bootstrap 5 · Bootstrap Icons · IndexedDB · Service Worker · eposwala login API.
+
+It was converted from a general-purpose shop POS. The accounting engine, backup, printing and reports are unchanged. The screens, menu, payments and look were rebuilt for an ice cream counter in Pakistan.
 
 ## Features
 
-- **POS sales**: search, camera/hardware barcode scan, cart with qty/rate/discount, bill discount, tax, cash/bank/credit/partial payments, change calculation, hold/resume, edit, void, returns, receipt printing. The cart survives page refresh.
-- **Purchases**: suppliers, purchase rate, discount, paid/remaining, edit, void, returns. Can update product cost from the latest purchase.
-- **Products & categories**: SKU, barcode (scan or generate EAN-13), unit, purchase/sale/wholesale prices, opening/min stock, compressed images, services (no stock).
-- **Customers & suppliers**: contact info, opening balance, ledger/statement (print), payments.
-- **Accounts / cash book**: cash, bank/wallet, income, expense, asset, liability accounts. Receipts, payments and transfers use double-entry ledger entries.
-- **Stock**: current stock, low/out-of-stock, stock ledger per product, adjustments (add/remove/set count) with void.
-- **Reports** (print + CSV): daily sales, sales by range, sales/purchase returns, product-wise sales/purchases, customer/supplier ledgers, receivables, payables, cash book, account ledger, daily closing, stock (as of date), profit summary.
-- **Backup & restore**: versioned JSON with checksum, validation preview, replace or merge.
-- **PWA**: installable, works fully offline after the first online login.
+**Sell (the main screen)**
+- Big emoji tiles for cups, cones, sundaes, shakes, kulfi and falooda, toppings and family tubs. Tapping a tile adds it with a bounce and a floating "+1".
+- On a phone, an empty bill opens on the menu. A sticky bar at the bottom shows the running total and returns to the bill.
+- Payment tiles: **Cash**, **JazzCash**, **EasyPaisa** and **Bank**. The amount received has quick buttons, and the change due is shown.
+- Confetti after each sale. The sale saves straight away and the cart clears for the next customer. The toast shows the change to hand back.
+- Hold a bill, edit a bill, void a bill, and print a receipt (Bluetooth, RawBT or browser). Receipts can include Urdu text.
+
+**Home**
+- Today's sales, bills, expenses and "left over" (sales minus expenses).
+- How customers paid today, by cash, JazzCash, EasyPaisa and bank.
+- Last 7 days chart and best sellers today.
+- A one-tap **Load starter menu** card when the menu is empty.
+
+**Expenses** (new)
+- Tap a category: Milk & Cream, Sugar & Flavours, Ice & Packing, Gas / LPG, Electricity & Water, Rent, Staff Salary, Transport, Repairs & Cleaning, or General. You can add your own types.
+- Choose how it was paid (cash, JazzCash, EasyPaisa, bank), then type the amount.
+- Today or this month, with a bar breakdown of where the money went. A mistake can be removed, which cancels it in the Cash Book and Reports.
+- Every expense is a payment voucher in the double-entry ledger, so the Cash Book and reports include it.
+
+**Menu & Prices, Stock, Returns, Customers, Reports, Backup**
+- Inherited from the shop POS. Stock is off for menu items by default, so ice cream does not need stock counts.
+- Stock Purchases and Suppliers are for buying ingredients and packaging on credit.
+
+**Sample menu.** On Home, tap **Load starter menu** to add sample prices in Rs for ice cream items, plus expense types and JazzCash, EasyPaisa and Bank accounts. It only adds what is missing and never changes existing items or prices. Change any name or price under **Menu & Prices**.
 
 ## Architecture
 
 ```
-index.html              App shell (splash, login, layout)
+index.html              App shell (splash, login, layout, bottom bar: Home · Bills · Sell · Expenses · More)
 manifest.json           PWA manifest
 service-worker.js       Precache of shell + CDN libs; cache-first; /api/ requests never cached
-css/app.css
+css/app.css             Base styles (the old shop layout)
+css/icecream.css        Ice cream theme, animations, Sell/Home/Expenses styles (loaded after app.css)
 js/app.js               Boot, auth gate + session expiry, router (lazy-loaded modules), connection badge, SW updates
 js/config.js            Login API base URL, support phone, app/schema/backup versions
-js/core/                utils, settings (LocalStorage), UI helpers, shared views
+js/core/                utils, settings (LocalStorage), UI helpers, fx (confetti / "+1"), shared views
 js/db/                  IndexedDB wrapper (atomic multi-store transactions) + schema
-js/services/            auth, catalog (in-memory search index), posting engine, backup
-js/modules/             dashboard, pos (sale + purchase), documents, products, stock, parties, vouchers, accounts, settings, backup
+js/services/            auth, catalog (in-memory search index), posting engine, starter menu, backup
+js/modules/             dashboard (Home), pos (Sell + purchases), expenses, documents (bills/returns),
+                        products (Menu & Prices), stock, parties, vouchers (Cash Book), accounts, settings, backup
 js/reports/             reports
 js/printer/             ESC/POS encoder, receipt builder, Bluetooth/RawBT/browser printing
 js/scanner/             camera scanning + keyboard-wedge scanner detection
+icons/                  App icons (pink ice cream cone)
 ```
 
 ### Storage
 
 | Where | What |
 |---|---|
-| IndexedDB `disterp_pos` | All business data: products, categories, customers, suppliers, accounts, sales + items, purchases + items, returns, vouchers, **ledger entries**, **stock moves**, adjustments, held sales, audit log, counters |
-| LocalStorage | Settings (business profile, tax, prefixes, printer, theme), device preferences, `disterp.session` (`{ token, expiresAt, username }`), `disterp.settings`, `disterp.pref.*`, `disterp.draft.*`, and the shared phone id `minipos.deviceId` |
+| IndexedDB `icecreampos_pos` | All business data: menu items, categories, customers, suppliers, accounts, bills + items, purchases, returns, vouchers and expenses, **ledger entries**, stock moves, held bills, audit log, counters |
+| LocalStorage | Settings (shop profile, tax, number prefixes, printer, theme), device preferences, `icecreampos.session` (`{ token, expiresAt, username }`), `icecreampos.draft.*` (the unsaved cart) and the shared phone id `minipos.deviceId` |
 
-**Shared origin.** Every GitHub Pages site under `designer-haxxan.github.io` is the *same origin*, so all of them share one IndexedDB, LocalStorage and Cache Storage. This app therefore namespaces everything with `CONFIG.APP_ID` (`disterp`): database `disterp_pos`, keys `disterp.*`, caches `disterp-v*`. Its service worker deletes only its own caches, and rebuilds its cache if another app deleted it. The old shared database `saleapp_pos` (also used by AgriSale / pharmaSaleApp) is never modified. *Backup & Restore* offers to import it after showing its record counts. If you copy this app for another shop, **change `APP_ID`** in `js/config.js` and `service-worker.js`.
+**Shared origin and a new database.** The app namespaces everything with `CONFIG.APP_ID` (`icecreampos`). That makes the database `icecreampos_pos` and the keys `icecreampos.*`. This keeps it apart from the other apps that share the GitHub Pages origin, including the earlier shop app whose data is in `disterp_pos`. A new install starts empty. *Backup & Restore* can still import the older shared database `saleapp_pos` after showing its record counts.
 
-**Data integrity.** Each operation (sale, purchase, return, voucher, adjustment, edit, void) runs in **one IndexedDB transaction**. That transaction writes:
+**Data integrity.** Each operation (sale, purchase, return, voucher or expense, adjustment, edit, void) runs in **one IndexedDB transaction**. That transaction writes the document and its lines, stock moves, balanced double-entry ledger entries (refused if they don't balance), the bill counter and an audit record. Any failure aborts everything. Bill numbers (`BILL-000001`…) come from a counter inside the same transaction, so a failed save never uses a number. Document IDs are created when the cart is opened, so a double tap or a retry after a refresh is detected as a duplicate.
 
-- the document and its lines
-- stock moves and the cached product stock
-- balanced double-entry ledger entries (the transaction is refused if they don't balance)
-- the invoice counter
-- the audit record
-
-Any failure aborts everything. Document IDs are generated when the cart is created, so a double tap or a retry after a refresh is detected as a duplicate instead of saving twice. Invoice numbers (`SALE-000001`…) come from a counter inside the same transaction, backed by a unique index. Failed transactions don't consume numbers.
-
-**Balances and reports are always derived from records.** Customer, supplier and account balances come from ledger entries. Stock-as-of-date comes from stock moves. The cached `product.stock` is updated in the same transaction and can be checked or rebuilt under *Settings → App & data*.
+**Balances and reports are always derived from records.** Account balances come from ledger entries; stock as of a date comes from stock moves.
 
 ### Authentication
 
@@ -65,30 +77,21 @@ POST /api/login   Content-Type: application/json
 !2xx → { "error": "missing_fields" | "invalid_credentials" | "device_mismatch" | "account_disabled" }
 ```
 
-- **Login requires internet.** Each error code is shown as a specific message; anything else shows "Login failed. Try again."
-- **One device per account.** `deviceId` is a UUID created once per browser and stored in `localStorage["minipos.deviceId"]`. The server binds the account to it, and logging out does not remove the binding. Moving to another phone goes through support (`CONFIG.SUPPORT_PHONE`).
-- **Session.** `{ token, expiresAt, username }` is stored verbatim in `localStorage["disterp.session"]`. The POS works offline, including across restarts, until `expiresAt`. When it passes, the app returns to the login screen, both at startup and during use (checked every minute and on every navigation). Passwords are never stored.
-- **Logout** only clears the local session; the API has no logout endpoint.
-- **Permissions.** The logged-in account is the shop owner and gets every POS function. If the server ever adds a `role` field (`manager` / `cashier`) to the login response, the app's role permissions apply automatically.
-
-### Offline behaviour
-
-- The service worker precaches the shell, every module, icons, CDN libraries and the icon fonts. The app loads with no network at all.
-- All POS work (sales, purchases, stock, payments, ledgers, reports, printing, scanning, backup) runs entirely on local data.
-- The status badge shows **Online / Offline**.
-- The app asks the browser for **persistent storage** so data is not evicted.
+- **Login requires internet.** The POS works offline after the first sign-in, until `expiresAt`.
+- **One device per account.** `deviceId` is stored in `localStorage["minipos.deviceId"]`. Moving to another phone goes through support (`CONFIG.SUPPORT_PHONE`).
+- Passwords are never stored. Logging out does not remove the device binding.
 
 ## Setup
 
 ### 1. Login API
 
-Set `AUTH_API_BASE` and `SUPPORT_PHONE` in `js/config.js` if they differ from the defaults.
+Set `AUTH_API_BASE` and `SUPPORT_PHONE` in `js/config.js` if they differ from the defaults. The login server must allow the app's origin (CORS). See the note below.
 
-**CORS:** `https://eposwala.com/api/login` currently sends no CORS headers. Browsers can therefore only call it from pages served by **https://eposwala.com** itself. To run the app from another origin, including `localhost`, the API must return `Access-Control-Allow-Origin` for that origin and answer the `OPTIONS` preflight with `Access-Control-Allow-Headers: content-type`.
+**CORS:** `https://eposwala.com/api/login` only accepts browser calls from pages served by **https://eposwala.com**. To run the app from another origin (including `localhost`), the API must return `Access-Control-Allow-Origin` for that origin and answer the `OPTIONS` preflight with `Access-Control-Allow-Headers: content-type`.
 
 ### 2. Run locally
 
-The app needs to be served over HTTP (ES modules and service worker). `localhost` counts as a secure context. Login from `localhost` only works once the API allows that origin (see CORS above).
+ES modules and the service worker need HTTP. The `.claude/launch.json` entry does this:
 
 ```bash
 python -m http.server 8765
@@ -98,49 +101,36 @@ Then open http://localhost:8765.
 
 ### 3. Deploy
 
-**GitHub Pages:** this repository is served from branch `main`, folder `/ (root)` (*Settings → Pages*), at https://designer-haxxan.github.io/DistERP/. All paths are relative, so the app works from that sub-path. `.nojekyll` makes Pages serve the files unchanged. Login from `github.io` only works once the eposwala API allows the origin `https://designer-haxxan.github.io` (see CORS above).
+GitHub Pages serves the repository root. All paths are relative. HTTPS is required for the service worker, camera and Web Bluetooth.
 
-
-Host the folder on **https://eposwala.com** (e.g. an IIS site or virtual directory next to `/api`), or on any other HTTPS host once the API allows that origin. **HTTPS is required** for the service worker, camera and Web Bluetooth.
-
-When you change any file, bump `VERSION` in `service-worker.js`. Installed apps update automatically the next time they are opened online (files are fetched bypassing the HTTP cache; the page reloads and POS carts are kept).
+**When you change any cached file, bump `VERSION` in `service-worker.js`.** Installed apps then update the next time they open online. Browsers can also keep old copies, so a hard reload or clearing the site's cache may be needed while testing.
 
 ## Backup & restore
 
-- **Export** downloads one JSON file:
-  ```json
-  { "format", "backupVersion", "appVersion", "schemaVersion", "createdAt", "createdBy", "counts", "checksum", "settings", "data": { ... } }
-  ```
-  `data` holds every collection. `checksum` is a SHA-256 of the data. No credentials are included.
-- **Import** validates everything before any data changes:
-  - JSON structure
-  - format and backup/schema versions
-  - IDs and required fields for each record
-  - duplicate records or document numbers
-  - record counts against the header (detects truncation)
-  - checksum (detects corruption or tampering)
-  - ledger balance
-  
-  You then see the backup date and record counts. You can optionally download a safety backup first, then choose:
-  - **Replace**: erases local data and loads the backup. You must type `REPLACE` to confirm. It runs in one transaction, so a failure leaves the existing data untouched.
-  - **Merge**: adds missing records and updates records that are newer in the backup. Documents are merged together with their lines, ledger entries and stock moves, so edited documents are never double-counted. Document-number conflicts are skipped and listed. Stock caches are recomputed afterwards.
+- **Export** downloads one JSON file with a header (`format`, `backupVersion`, `appVersion`, `schemaVersion`, `createdAt`, `createdBy`, `counts`, `checksum`, `settings`) and `data` holding every collection. `checksum` is a SHA-256 of the data. No credentials are included.
+- **Import** validates before anything changes: JSON structure, versions, IDs and required fields, duplicates, record counts against the header, checksum, and ledger balance. You can download a safety backup first. Then choose:
+  - **Replace**: erases local data and loads the backup. Type `REPLACE` to confirm. Runs in one transaction.
+  - **Merge**: adds missing records and updates newer ones. Documents merge with their lines, ledger entries and stock moves. Document-number conflicts are skipped and listed.
 
-## Printing & scanning support
+## Printing & scanning
 
 | Capability | Where it works | Notes |
 |---|---|---|
-| Web Bluetooth ESC/POS (58/80 mm) | Chrome/Edge on Android, Windows, macOS, Linux, ChromeOS (HTTPS) | Only **BLE** printers; most cheap "classic Bluetooth SPP" printers are not reachable from browsers. Not available in Safari, Firefox or any iOS browser. Known printer channels are tried first (18F0/2AF1, E781…/BEF8…, ISSC 4953…, FF00/FF02, AE30/AE01, FFE0/FFE1, FEE7/FEC7), then blind discovery. Data goes out in 20-byte chunks by default, with acknowledged writes when the printer supports them (Settings → Transfer speed: 20/100/180 bytes). Connecting retries 3×. The printer reconnects silently via `getDevices()` / `watchAdvertisements()` where supported. Print jobs are queued. |
-| RawBT | Android | Free RawBT app bridges ESC/POS data to classic Bluetooth, USB and network printers. |
-| Browser print | Everywhere | Uses 58/80 mm receipt CSS; works with AirPrint, system print services and PDF. Also used automatically as a fallback. |
-| Urdu receipts | All print methods | Urdu/Arabic text (shop name, products, customers, footer…) is drawn with **Jameel Noori Nastaleeq** (`fonts/`, loaded only for Urdu characters via `unicode-range`). For ESC/POS (Bluetooth/RawBT), only lines that contain Urdu are rasterised and sent as `GS v 0` bitmaps; Latin lines stay as fast printer text. Image mode is selectable in *Settings → Printer → Urdu printing mode*: `GS v 0` (default) or `ESC *` for older printers. *Test print* includes Urdu lines. Font: "Free of charge for Urdu lovers" (embedding: preview & print). |
-| Camera scanning | HTTPS on Android/iOS/desktop | Uses the native `BarcodeDetector` when available (Chrome Android), otherwise lazy-loads `html5-qrcode`. Camera permission errors show guidance and a manual-entry field. |
-| Camera permission help | Android / iOS / desktop | Before requesting, the scanner explains and asks via an **Allow camera** tap. When blocked it diagnoses the cause and shows matching steps: *in-app browser* (WhatsApp/Facebook/Instagram → **Open in Chrome** button), *blocked by the phone* ("Permission denied by system": quick-settings Camera access, Android app permission for Chrome/Samsung Internet), *blocked for the site* (Chrome/Samsung Internet site settings; Chrome only lists a site after it has asked once, and an installed app's *App info → Permissions* can show nothing, which is normal) or *prompt dismissed*. It warns never to use *Clear & reset*, because that deletes the POS data. |
-| Hardware scanners | Everywhere | USB/Bluetooth HID "keyboard wedge" scanners work in the search field and anywhere on the POS screen (fast keystrokes + Enter). |
+| Web Bluetooth ESC/POS (58/80 mm) | Chrome/Edge on Android, Windows, macOS, Linux, ChromeOS (HTTPS) | Only **BLE** printers. Most cheap "classic Bluetooth" printers are not reachable from browsers. Not on iOS. |
+| RawBT | Android | The free RawBT app bridges ESC/POS to classic Bluetooth, USB and network printers. |
+| Browser print | Everywhere | 58/80 mm receipt CSS. Works with AirPrint, system print and PDF. Also the automatic fallback. |
+| Urdu receipts | All print methods | Urdu text is drawn with **Jameel Noori Nastaleeq** (`fonts/`, loaded only for Urdu characters). Settings → Printer → Urdu printing mode. |
+| Camera scanning | HTTPS on Android/iOS/desktop | Uses `BarcodeDetector` when available, otherwise `html5-qrcode`. |
+| Hardware scanners | Everywhere | USB/Bluetooth keyboard-wedge scanners work in the search field. |
+
+Tick **Print receipt** at checkout to print that bill. Automatic printing can be turned on in Settings.
 
 ## Known limitations
 
-- **Data lives on the device.** There is no multi-device cloud sync of POS data. Use backups regularly; the dashboard reminds you after 7 days. To combine data from several devices, give each device different number prefixes (*Settings*) and use **Merge**.
-- **Anyone with physical access can read local data.** The offline session gate is client-side. A person with the device and developer tools can read IndexedDB. Use device lock screens.
-- **No user management in the app.** Accounts, passwords, device resets and disabling are handled on the eposwala server side. The API has no endpoints for them.
-- **Cost of goods sold uses the last purchase price** recorded on each sale line, not FIFO or weighted average.
-- **iOS has no Web Bluetooth.** Print via AirPrint or the browser dialog instead.
+- **Data lives on the device.** No multi-device sync. Back up regularly (the Home screen reminds you after 7 days). For several tills, give each a different number prefix in Settings and use **Merge**.
+- **The screens are English.** Urdu is used for receipts and a few hints, not for the whole app. A full Urdu interface is not built yet.
+- **Tax is off by default.** Turn it on under Settings only if your accountant confirms the rate for your business (16% is set as the starting rate). Check FBR rules before you rely on it.
+- **Sample prices are not real prices.** They are placeholders in Rs. Set your own under Menu & Prices.
+- **Anyone with physical access can read local data** (IndexedDB is not encrypted). Use device lock screens.
+- **Cost of goods uses the last purchase price** recorded on each sale line. Menu items do not track stock by default.
+- **iOS has no Web Bluetooth.** Print with AirPrint or the browser print dialog.

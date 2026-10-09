@@ -4,9 +4,7 @@ import { CONFIG } from '../config.js';
 export const DB_NAME = `${CONFIG.APP_ID}_pos`;
 // Database name used by older builds (shared with other apps on the same origin). Never modified; only read on import.
 export const LEGACY_DB_NAME = 'saleapp_pos';
-// Version 2 has the same stores as version 1. It exists because a build of another project was briefly deployed
-// here and upgraded phones' databases to v2; opening with v1 would then fail with a VersionError.
-export const DB_VERSION = 2;
+export const DB_VERSION = 1;
 
 // Stores that make up the business data (included in backups).
 export const DATA_STORES = [
@@ -63,6 +61,5 @@ export function upgrade(db, oldVersion, t) {
     t.objectStore('meta').put({ key: 'schemaVersion', value: 1 });
     t.objectStore('meta').put({ key: 'createdAt', value: now });
   }
-  // v2: no structural change (see DB_VERSION). Extra stores left by that other build are ignored.
-  // Future migrations: if (oldVersion < 3) { ... }
+  // Future migrations: if (oldVersion < 2) { ... }
 }
